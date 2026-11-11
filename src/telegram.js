@@ -154,6 +154,7 @@ export function telegramApp(o) {
       statusDark: o.tint.dark,
       home: o.tint.dark ? "#f2f2f7" : "#111",
       shadow: o.shadow,
+      finish: o.finish,
     });
   }
 
@@ -316,6 +317,7 @@ export function telegramChat(o) {
       statusDark: o.dark,
       home: t.home,
       shadow: o.shadow,
+      finish: o.finish,
     });
   }
 

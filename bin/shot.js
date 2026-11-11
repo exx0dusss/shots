@@ -27,6 +27,7 @@ Options
                        from shots.config.json (default accent)
   --pad <px>           canvas padding around the frame, CSS px (default 120)
   --shadow <strength>  ${Object.keys(SHADOWS).join(", ")}, or a number 0–2 (default medium)
+  --finish <f>         the phone's body: titanium (default) or black
   --tilt <deg>         turn the frame; two phones fan apart (default 0)
   --bar <text>         address shown in Safari (default: the URL's host);
                        "none" draws the window or phone with no Safari chrome
@@ -75,6 +76,7 @@ const { values, positionals } = parseArgs({
     canvas: { type: "string", short: "c" },
     pad: { type: "string" },
     shadow: { type: "string" },
+    finish: { type: "string" },
     tilt: { type: "string" },
     bar: { type: "string" },
     theme: { type: "string" },

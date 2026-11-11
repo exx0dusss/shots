@@ -145,6 +145,16 @@ const telegram = [
     preset: "instagram-square",
     canvas: "telegram-dark",
   },
+  {
+    name: "finish-black",
+    sources: [app],
+    device: "phone",
+    frame: "telegram-app",
+    scheme: "dark",
+    finish: "black",
+    preset: "instagram-square",
+    canvas: "ink",
+  },
 ];
 
 const browser = await launchBrowser();

@@ -16,7 +16,7 @@ import sharp from "sharp";
 import { capturePage, launchBrowser, readImage, topTint } from "./capture.js";
 import { loadConfig } from "./config.js";
 import { assertInside, isBlockedUrl } from "./guard.js";
-import { iPhone, macWindow, viewOf } from "./frames.js";
+import { FINISHES, iPhone, macWindow, viewOf } from "./frames.js";
 import {
   APP_DESKTOP_WIDTH,
   TELEGRAM_FRAMES,
@@ -136,6 +136,10 @@ export async function resolveOptions(input, root = null) {
   };
   const canvas = resolveCanvas(o.canvas, config.canvases);
   const shadow = resolveShadow(o.shadow);
+  const finish = o.finish ?? "titanium";
+  if (!FINISHES[finish]) {
+    throw new Error(`--finish must be ${Object.keys(FINISHES).join(" or ")}, got ${finish}`);
+  }
   const theme = o.theme ?? "auto";
   if (!["auto", "light", "dark"].includes(theme)) throw new Error("--theme: auto, light or dark");
   if (o.scheme && !["light", "dark"].includes(o.scheme)) throw new Error("--scheme: light or dark");
@@ -168,6 +172,7 @@ export async function resolveOptions(input, root = null) {
     canvasName: o.canvas ?? "accent",
     pad,
     shadow,
+    finish,
     theme,
     scheme: o.scheme,
     tilt: number("tilt", 0, -45, 45),
@@ -320,6 +325,7 @@ export async function frameShot(input, shared = {}) {
           button: o.button,
           dark,
           shadow: o.shadow,
+          finish: o.finish,
         });
       } else if (shot.frame === "telegram-chat") {
         const wallpaper = wallpaperName(o.wallpaper ?? chat?.wallpaper, dark);
@@ -335,9 +341,17 @@ export async function frameShot(input, shared = {}) {
           menu: o.menu ?? chat?.menu,
           dark,
           shadow: o.shadow,
+          finish: o.finish,
         });
       } else if (device === "phone") {
-        frame = iPhone({ src, tint, address: shot.address, dark, shadow: o.shadow });
+        frame = iPhone({
+          src,
+          tint,
+          address: shot.address,
+          dark,
+          shadow: o.shadow,
+          finish: o.finish,
+        });
       } else {
         frame = macWindow({ src, view, address: shot.address, dark, shadow: o.shadow });
       }

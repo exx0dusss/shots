@@ -99,7 +99,27 @@ export function macWindow({ src, view, address, dark, shadow: strength }) {
 }
 
 /**
- * An iPhone with a status bar and nothing else on its screen.
+ * The phone's body. `titanium` has a grey rim that catches the light; `black`
+ * has none, only a faint inner highlight so the phone keeps its outline on a
+ * dark canvas.
+ */
+export const FINISHES = {
+  titanium: {
+    body: "linear-gradient(145deg, #55555a, #1d1d1f 55%, #3c3c40)",
+    button: "#2c2c2e",
+    edge: "",
+  },
+  black: {
+    body: "linear-gradient(145deg, #1b1b1d, #0a0a0b 55%, #131314)",
+    button: "#0e0e0f",
+    edge: "inset 0 0 0 1px rgba(255,255,255,.07), ",
+  },
+};
+
+/**
+ * An iPhone with a status bar and nothing else on its screen. The screen is
+ * black behind its content, so no light edge shows at the rounded corners of
+ * a dark page.
  * @param {object} o
  * @param {string} o.screen   HTML placed on the screen, under the status bar
  * @param {string} o.css      CSS for that HTML
@@ -107,18 +127,28 @@ export function macWindow({ src, view, address, dark, shadow: strength }) {
  * @param {boolean} o.statusDark  true for white status bar text
  * @param {string} o.home     colour of the home indicator
  * @param {number} o.shadow
+ * @param {"titanium"|"black"} [o.finish]  colour of the body and side buttons
  */
-export function phoneShell({ screen, css, statusBg, statusDark, home, shadow: strength }) {
+export function phoneShell({
+  screen,
+  css,
+  statusBg,
+  statusDark,
+  home,
+  shadow: strength,
+  finish = "titanium",
+}) {
+  const metal = FINISHES[finish] ?? FINISHES.titanium;
   const { width, height, status, bezel } = PHONE;
   const outer = { width: width + bezel * 2, height: height + bezel * 2 };
   const shell = `
     .wrap { position: relative; width: ${outer.width}px; height: ${outer.height}px; }
-    .btn { position: absolute; width: 4px; background: #2c2c2e; border-radius: 2px; }
+    .btn { position: absolute; width: 4px; background: ${metal.button}; border-radius: 2px; }
     .body { width: 100%; height: 100%; border-radius: 68px; padding: 5px;
-      background: linear-gradient(145deg, #55555a, #1d1d1f 55%, #3c3c40);
-      box-shadow: 0 0 0 1px rgba(0,0,0,.4)${shadow(strength)}; }
+      background: ${metal.body};
+      box-shadow: ${metal.edge}0 0 0 1px rgba(0,0,0,.4)${shadow(strength)}; }
     .glass { width: 100%; height: 100%; border-radius: 63px; background: #000; padding: ${bezel - 5}px; }
-    .screen { position: relative; width: ${width}px; height: ${height}px; border-radius: 54px; overflow: hidden; background: #fff; }
+    .screen { position: relative; width: ${width}px; height: ${height}px; border-radius: 54px; overflow: hidden; background: #000; }
     .status { position: absolute; inset: 0 0 auto 0; height: ${status}px; background: ${statusBg}; color: ${statusDark ? "#fff" : "#000"};
       display: flex; justify-content: space-between; align-items: center; padding: 8px 34px 0 52px; z-index: 3;
       font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
@@ -162,7 +192,7 @@ export function windowShell({ width, height, inner, css, shadow: strength, radiu
  * @param {boolean} o.dark  dark Safari bar
  * @param {number} o.shadow
  */
-export function iPhone({ src, tint, address, dark, shadow: strength }) {
+export function iPhone({ src, tint, address, dark, shadow: strength, finish }) {
   const chrome = address !== null;
   const { width, status } = PHONE;
   const view = viewOf("phone", { chrome });
@@ -195,5 +225,6 @@ export function iPhone({ src, tint, address, dark, shadow: strength }) {
     // with no Safari bar the home indicator lies over the page itself
     home: chrome ? bar.home : tint.dark ? "#f2f2f7" : "#111",
     shadow: strength,
+    finish,
   });
 }

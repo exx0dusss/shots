@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
+import { FINISHES, iPhone, phoneShell } from "../src/frames.js";
 import { classifySource, resolveOptions } from "../src/index.js";
 import { arrange } from "../src/layout.js";
 import { CANVASES, resolveCanvas } from "../src/presets.js";
@@ -173,4 +174,41 @@ test("a desktop Mini App window pairs like a phone", () => {
   const stage = arrange([chatWindow, app]);
   assert.equal(stage.items[1].z, 2);
   assert.equal(stage.items[1].scale, 0.78);
+});
+
+test("the phone's finish and its screen backing", async () => {
+  const shell = (finish) =>
+    phoneShell({
+      screen: "",
+      css: "",
+      statusBg: "#000",
+      statusDark: true,
+      home: "#fff",
+      shadow: 1,
+      finish,
+    });
+  // the default is the titanium body, unchanged
+  assert.equal(shell(undefined).css, shell("titanium").css);
+  assert.match(shell("titanium").css, /#55555a/);
+  assert.doesNotMatch(shell("black").css, /#55555a|#2c2c2e/);
+  assert.match(shell("black").css, new RegExp(FINISHES.black.button));
+  // black behind the content, whatever the finish: no light edge at the corners
+  for (const finish of ["titanium", "black"]) {
+    assert.match(shell(finish).css, /\.screen \{[^}]*background: #000/);
+  }
+  const tint = { css: "rgb(0, 0, 0)", dark: true };
+  const safari = iPhone({
+    src: "data:,",
+    tint,
+    address: "x.dev",
+    dark: true,
+    shadow: 1,
+    finish: "black",
+  });
+  assert.match(safari.css, new RegExp(FINISHES.black.button));
+
+  const base = { cwd: dir, sources: ["in/a.png"], out: "o.png" };
+  assert.equal((await resolveOptions(base)).finish, "titanium");
+  assert.equal((await resolveOptions({ ...base, finish: "black" })).finish, "black");
+  await assert.rejects(resolveOptions({ ...base, finish: "gold" }), /--finish must be/);
 });

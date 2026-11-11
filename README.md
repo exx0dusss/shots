@@ -86,6 +86,7 @@ and `example.com` work without the scheme.
 | `--aspect <w:h>`      | A free canvas ratio instead of a preset, e.g. `3:2`. With neither, the canvas hugs the frame                                                                                 |
 | `--canvas <name>`     | Background, see [Canvases](#canvases). Default `accent`                                                                                                                      |
 | `--pad <px>`          | Canvas padding around the frame, in CSS px. Default 120                                                                                                                      |
+| `--finish <f>`        | The phone's body: `titanium` (default, a grey rim) or `black` (no rim, for dark canvases)                                                                                    |
 | `--shadow <strength>` | `none`, `soft`, `medium` (default), `strong`, or a number 0–2                                                                                                                |
 | `--tilt <deg>`        | Turns the frame, -45 to 45. Two phones fan apart instead                                                                                                                     |
 | `--bar <text>`        | Address shown in Safari. Default: the URL's host. `none` draws the window or phone with no toolbar                                                                           |
@@ -191,6 +192,11 @@ does.
 |    `telegram-dark` as wallpaper and canvas    |             Dark Mini App, desktop window              |
 | :-------------------------------------------: | :----------------------------------------------------: |
 | ![Dark](samples/telegram-wallpaper-dark.webp) | ![Desktop Mini App](samples/telegram-app-desktop.webp) |
+
+On a dark canvas the phone's grey rim reads as an outline. `--finish black`
+draws the body black with only a faint highlight:
+
+![A dark Mini App in a black phone on a black canvas](samples/finish-black.webp)
 
 ### Presets
 

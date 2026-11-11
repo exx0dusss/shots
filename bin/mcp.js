@@ -106,6 +106,12 @@ server.registerTool(
           "Background: a built-in or config name, one colour (#0ea5e9), 2-3 comma-separated colours for a glow, a CSS gradient, or 'none' for transparent. Default accent",
         ),
       pad: z.number().optional().describe("Padding around the frame in CSS px (default 120)"),
+      finish: z
+        .enum(["titanium", "black"])
+        .optional()
+        .describe(
+          "The phone's body. titanium (default) has a grey rim; black has none, for dark canvases",
+        ),
       shadow: z
         .union([z.enum(Object.keys(SHADOWS)), z.number().min(0).max(2)])
         .optional()
