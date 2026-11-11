@@ -211,9 +211,10 @@ which you type yourself, is not:
   shooting your dev server is what the tool is for. It follows that the server
   can screenshot anything your machine can reach, such as a router page or an
   internal dashboard, and save it as an image in the project. Do not run it on
-  a machine where that is a problem. The check and the browser resolve a name
-  separately, so a DNS answer that changes in between (rebinding) is not
-  caught.
+  a machine where that is a problem. The name check and the browser resolve a
+  name separately, so each response's real server address is checked as well
+  and a capture that touched a blocked address is thrown away. The request
+  itself has been sent by then; only its content is kept out of the image.
 
 Set the variables where the server is registered, for example
 `claude mcp add --scope user -e SHOTS_ROOT=$HOME/GitHub shots -- node …/bin/mcp.js`.

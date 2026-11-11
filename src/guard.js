@@ -45,7 +45,8 @@ const METADATA_HOSTS = new Set(["metadata", "metadata.google.internal", "instanc
 
 /** Is this IP address (as text) link-local or a cloud metadata address? */
 export function isBlockedAddress(address) {
-  const ip = address.toLowerCase();
+  // Chrome reports IPv6 server addresses in brackets
+  const ip = address.toLowerCase().replace(/^\[|\]$/g, "");
   if (/^169\.254\.\d+\.\d+$/.test(ip)) return true;
   if (/^fe[89ab][0-9a-f]:/.test(ip)) return true; // fe80::/10
   if (/^::ffff:(169\.254\.|a9fe:)/.test(ip)) return true; // IPv4-mapped link-local
@@ -70,12 +71,18 @@ export function isBlockedHost(url) {
   return host === null || METADATA_HOSTS.has(host) || isBlockedAddress(host);
 }
 
+// Chrome maps these to loopback itself, whatever the system resolver says.
+const isLocalhostName = (host) => host === "localhost" || host.endsWith(".localhost");
+
+const RESOLVE_TTL = 5000;
 const resolved = new Map();
 
 /**
  * `isBlockedHost`, and also true when the host name resolves to a blocked
- * address (a public name pointed at 169.254.169.254). Answers are remembered
- * per host for the life of the process.
+ * address (a public name pointed at 169.254.169.254) or does not resolve at
+ * all. An answer is reused for a few seconds only, enough for the requests of
+ * one page. The browser still does its own lookup, so `capturePage` also
+ * checks the address each response really came from.
  * @param {string} url
  * @param {(host: string, o: {all: true}) => Promise<{address: string}[]>} [resolve]
  */
@@ -83,15 +90,13 @@ export async function isBlockedUrl(url, resolve = lookup) {
   if (isBlockedHost(url)) return true;
   if (!/^(https?|wss?):/i.test(url)) return false; // data:, blob:, about:
   const host = hostOf(url);
-  if (isIP(host)) return false;
-  if (!resolved.has(host)) {
-    resolved.set(
-      host,
-      resolve(host, { all: true }).then(
-        (found) => found.some((entry) => isBlockedAddress(entry.address)),
-        () => false, // does not resolve: the browser cannot reach it either
-      ),
-    );
-  }
-  return resolved.get(host);
+  if (isIP(host) || isLocalhostName(host)) return false;
+  const known = resolved.get(host);
+  if (known && known.until > Date.now()) return known.blocked;
+  const blocked = resolve(host, { all: true }).then(
+    (found) => found.length === 0 || found.some((entry) => isBlockedAddress(entry.address)),
+    () => true, // unknown is not allowed
+  );
+  resolved.set(host, { blocked, until: Date.now() + RESOLVE_TTL });
+  return blocked;
 }

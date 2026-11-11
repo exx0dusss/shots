@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 
-import { isBlockedUrl } from "./guard.js";
+import { isBlockedAddress, isBlockedUrl } from "./guard.js";
 import { PHONE_UA } from "./presets.js";
 
 // Dev-only overlays that must never reach a presentation shot.
@@ -60,6 +60,16 @@ export async function capturePage(browser, url, o) {
           : route.continue(),
       );
     }
+    // The name check and the browser resolve separately, so also look at the
+    // address each response really came from (DNS rebinding). One bad
+    // response and no picture is taken.
+    let reached = null;
+    if (o.guarded) {
+      context.on("response", async (response) => {
+        const server = await response.serverAddr().catch(() => null);
+        if (server && isBlockedAddress(server.ipAddress)) reached ??= response.url();
+      });
+    }
     const page = await context.newPage();
     // one retry: a single dropped connection should not fail a whole batch
     await page
@@ -86,6 +96,8 @@ export async function capturePage(browser, url, o) {
     // Park the pointer in a corner so nothing shows a hover state.
     await page.mouse.move(0, 0);
     await page.waitForTimeout(600 + (o.wait ?? 0));
+    if (reached)
+      throw new Error(`Refusing to capture: ${reached} was served from a blocked address`);
     const data = await page.screenshot({ type: "png" });
     return {
       data,

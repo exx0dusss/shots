@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { assertInside, isBlockedHost, isBlockedUrl } from "../src/guard.js";
+import { assertInside, isBlockedAddress, isBlockedHost, isBlockedUrl } from "../src/guard.js";
 import { resolveOptions } from "../src/index.js";
 
 let tmp;
@@ -109,8 +109,37 @@ test("a name that resolves to a blocked address is blocked", async () => {
   assert.equal(await isBlockedUrl("https://evil.example/latest", resolve), true);
   assert.equal(await isBlockedUrl("http://EVIL6.example./", resolve), true);
   assert.equal(await isBlockedUrl("https://fine.example/", resolve), false);
-  assert.equal(await isBlockedUrl("https://unknown.example/", resolve), false);
+  // a name that does not resolve is refused, except Chrome's own *.localhost
+  assert.equal(await isBlockedUrl("https://unknown.example/", resolve), true);
+  assert.equal(await isBlockedUrl("http://app.localhost:3000/", resolve), false);
+  assert.equal(await isBlockedUrl("http://localhost:3000/", resolve), false);
   assert.equal(await isBlockedUrl("http://127.0.0.1:3000/", resolve), false);
   assert.equal(await isBlockedUrl("data:text/plain,hi", resolve), false);
   assert.equal(await isBlockedUrl("http://169.254.169.254/", resolve), true);
+});
+
+test("a DNS answer is not trusted for long", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  let answer = "93.184.216.34";
+  let lookups = 0;
+  const resolve = async () => {
+    lookups += 1;
+    return [{ address: answer }];
+  };
+  assert.equal(await isBlockedUrl("https://rebind.example/", resolve), false);
+  assert.equal(await isBlockedUrl("https://rebind.example/again", resolve), false);
+  assert.equal(lookups, 1);
+  answer = "169.254.169.254";
+  t.mock.timers.tick(6000);
+  assert.equal(await isBlockedUrl("https://rebind.example/", resolve), true);
+  assert.equal(lookups, 2);
+});
+
+test("server addresses as Chrome reports them", () => {
+  for (const ip of ["169.254.169.254", "[fe80::1]", "[fd00:ec2::254]", "[::ffff:a9fe:a9fe]"]) {
+    assert.equal(isBlockedAddress(ip), true, ip);
+  }
+  for (const ip of ["[::1]", "127.0.0.1", "192.168.1.20", "93.184.216.34"]) {
+    assert.equal(isBlockedAddress(ip), false, ip);
+  }
 });
