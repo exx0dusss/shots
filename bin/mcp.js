@@ -10,9 +10,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import sharp from "sharp";
 import { z } from "zod";
 
+import { assertInside } from "../src/guard.js";
 import { CANVASES, PRESETS, SHADOWS, frameShot, loadConfig } from "../src/index.js";
 
 const server = new McpServer({ name: "shots", version: "0.1.0" });
+
+// An agent chooses the paths here, so files are confined to one directory:
+// where the server was started (the project), or SHOTS_ROOT.
+// SHOTS_ALLOW_OUTSIDE=1 lifts the limit.
+const root =
+  process.env.SHOTS_ALLOW_OUTSIDE === "1"
+    ? null
+    : path.resolve(process.env.SHOTS_ROOT ?? process.cwd());
 
 const presetNames = Object.keys(PRESETS);
 
@@ -32,7 +41,9 @@ server.registerTool(
         ),
       out: z
         .string()
-        .describe("Output file, .png, .webp or .jpg. Relative paths resolve against cwd"),
+        .describe(
+          "Output file, .png, .webp or .jpg, inside the project. Relative paths resolve against cwd",
+        ),
       cwd: z
         .string()
         .optional()
@@ -109,7 +120,7 @@ server.registerTool(
   },
   async ({ preview = true, ...options }) => {
     try {
-      const done = await frameShot(options);
+      const done = await frameShot(options, { root });
       const content = [{ type: "text", text: JSON.stringify(done) }];
       if (preview) {
         const small = await sharp(done.out)
@@ -137,7 +148,9 @@ server.registerTool(
   },
   async ({ cwd }) => {
     try {
-      const config = await loadConfig(path.resolve(cwd ?? process.cwd()));
+      const dir = path.resolve(cwd ?? process.cwd());
+      if (root) await assertInside(root, dir, "cwd");
+      const config = await loadConfig(dir);
       const listing = {
         presets: Object.fromEntries(
           Object.entries(PRESETS).map(([name, p]) => [

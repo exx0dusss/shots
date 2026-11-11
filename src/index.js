@@ -15,6 +15,7 @@ import sharp from "sharp";
 
 import { capturePage, launchBrowser, readImage, topTint } from "./capture.js";
 import { loadConfig } from "./config.js";
+import { assertInside, isBlockedHost } from "./guard.js";
 import { iPhone, macWindow, viewOf } from "./frames.js";
 import { arrange, canvasSize } from "./layout.js";
 import {
@@ -50,8 +51,9 @@ export function classifySource(source, cwd) {
 }
 
 /** Options with the config's defaults applied, validated and typed. */
-export async function resolveOptions(input) {
+export async function resolveOptions(input, root = null) {
   const cwd = path.resolve(input.cwd ?? process.cwd());
+  if (root) await assertInside(root, cwd, "cwd");
   const config = await loadConfig(cwd, input.config);
   const given = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
   const o = { ...config.defaults, ...given };
@@ -76,6 +78,15 @@ export async function resolveOptions(input) {
   }
   if (!o.out) throw new Error("--out is required");
   const out = path.resolve(cwd, o.out);
+  const classified = sources.map((s) => classifySource(s, cwd));
+  // with a root (the MCP server) nothing is read or written outside it
+  if (root) {
+    await assertInside(root, out, "out");
+    for (const source of classified) {
+      if (source.kind === "image") await assertInside(root, source.file, "source");
+      else if (isBlockedHost(source.url)) throw new Error(`Refusing to open ${source.url}`);
+    }
+  }
   const format = FORMATS[path.extname(out).toLowerCase()];
   if (!format) throw new Error("--out must end in .png, .webp or .jpg");
 
@@ -96,7 +107,8 @@ export async function resolveOptions(input) {
 
   return {
     cwd,
-    sources: sources.map((s) => classifySource(s, cwd)),
+    sources: classified,
+    guarded: Boolean(root),
     devices,
     out,
     format,
@@ -147,12 +159,14 @@ async function encode(png, o, size) {
 
 /**
  * @param {object} input  see README, "Options". `sources` (or `source`) and `out` are required.
- * @param {{browser?: import("playwright-core").Browser}} [shared]  reuse a
- *   browser across calls (batch); otherwise one is launched and closed here.
+ * @param {{browser?: import("playwright-core").Browser, root?: string}} [shared]
+ *   `browser`: reuse one across calls (batch); otherwise one is launched and
+ *   closed here. `root`: refuse to read or write files outside this directory
+ *   and to open link-local hosts (set by the MCP server).
  * @returns {Promise<{out:string,width:number,height:number,preset:string|null,canvas:string}>}
  */
 export async function frameShot(input, shared = {}) {
-  const o = await resolveOptions(input);
+  const o = await resolveOptions(input, shared.root);
   const browser = shared.browser ?? (await launchBrowser());
   try {
     if (o.bare && o.sources.length > 1) throw new Error("--frame none takes one source");
@@ -179,6 +193,7 @@ export async function frameShot(input, shared = {}) {
           wait: o.wait,
           hide: o.hide,
           scheme: o.scheme,
+          guarded: o.guarded,
         });
       } else {
         picture = await readImage(source.file);

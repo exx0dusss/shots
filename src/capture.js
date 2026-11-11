@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 
+import { isBlockedHost } from "./guard.js";
 import { PHONE_UA } from "./presets.js";
 
 // Dev-only overlays that must never reach a presentation shot.
@@ -37,6 +38,7 @@ export function launchBrowser() {
  * @param {number} [o.wait]    extra ms to wait before the capture
  * @param {string[]} [o.hide]  CSS selectors to hide
  * @param {"light"|"dark"} [o.scheme]  emulated prefers-color-scheme
+ * @param {boolean} [o.guarded]  abort requests to link-local and metadata hosts
  */
 export async function capturePage(browser, url, o) {
   const context = await browser.newContext({
@@ -48,6 +50,12 @@ export async function capturePage(browser, url, o) {
     ...(o.phone ? { userAgent: PHONE_UA } : {}),
   });
   try {
+    if (o.guarded) {
+      // covers redirects and subresources, not only the address asked for
+      await context.route("**/*", (route) =>
+        isBlockedHost(route.request().url()) ? route.abort("blockedbyclient") : route.continue(),
+      );
+    }
     const page = await context.newPage();
     // one retry: a single dropped connection should not fail a whole batch
     await page

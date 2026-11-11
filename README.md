@@ -185,8 +185,35 @@ Or for one project, in its `.mcp.json`:
 
 Claude Code starts the server in the project folder, so relative `out` paths
 and the project's `shots.config.json` resolve there; pass `cwd` to point
-somewhere else. Then ask for it in plain words: "frame localhost:3000 on a
+at a folder inside it. Then ask for it in plain words: "frame localhost:3000 on a
 phone for Instagram, brand canvas, save to marketing/hero.webp".
+
+### Security
+
+In the MCP server an agent picks the paths and URLs, and an agent can be
+misled by text it reads on a page. So the server is limited in ways the CLI,
+which you type yourself, is not:
+
+- **Files stay in one directory.** `out`, image `sources` and `cwd` must lie
+  under the directory the server was started in (Claude Code starts it in the
+  project). Symlinks are resolved first, so a link that leads out does not
+  pass. `SHOTS_ROOT=/some/dir` sets another directory; `SHOTS_ALLOW_OUTSIDE=1`
+  lifts the limit.
+- **Only images are written,** as `.png`, `.webp` or `.jpg`. An existing image
+  at `out` is overwritten, as you would expect when re-shooting.
+- **Only `http` and `https` are opened,** never `file:`. Link-local addresses
+  and cloud metadata hosts (`169.254.0.0/16`, `fe80::/10`,
+  `metadata.google.internal`) are refused, for the page itself and for
+  anything it redirects to or loads.
+- **`localhost` and private network addresses are allowed on purpose:**
+  shooting your dev server is what the tool is for. It follows that the server
+  can screenshot anything your machine can reach, such as a router page or an
+  internal dashboard, and save it as an image in the project. Do not run it on
+  a machine where that is a problem. A hostname that resolves to a blocked
+  address is not detected.
+
+Set the variables where the server is registered, for example
+`claude mcp add --scope user -e SHOTS_ROOT=$HOME/GitHub shots -- node …/bin/mcp.js`.
 
 ## As a library
 
@@ -220,6 +247,7 @@ canvas edge and always fades out softly.
 | `src/layout.js`  | Where frames sit, and the canvas size (pure geometry) |
 | `src/presets.js` | Presets, canvases, device metrics, shadows            |
 | `src/config.js`  | `shots.config.json`                                   |
+| `src/guard.js`   | The MCP server's file and host limits                 |
 
 `SHOTS_CHROME` picks another browser: a Playwright channel (`msedge`,
 `chrome-beta`) or a path to a Chromium binary.
