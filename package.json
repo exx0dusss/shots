@@ -1,0 +1,35 @@
+{
+  "name": "shots",
+  "version": "0.1.0",
+  "description": "Frame a web page or an image in a drawn Safari window or iPhone on a coloured canvas, sized for X, Instagram and Open Graph. CLI and MCP server.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "bin": {
+    "shot": "bin/shot.js",
+    "shots-mcp": "bin/mcp.js"
+  },
+  "exports": "./src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "eslint . && prettier --check . && node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "node --test",
+    "samples": "node scripts/samples.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "playwright-core": "^1.65.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10"
+  }
+}
