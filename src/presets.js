@@ -44,6 +44,9 @@ export const CANVASES = {
   none: "transparent",
 };
 
+// CSS functions that fetch or reference something outside the value itself.
+const LOADS = /\b(url|image|image-set|cross-fade|element|src|var|env|attr|paint)\s*\(/i;
+
 // One CSS colour: hex, a function such as rgb()/oklch(), or a named colour.
 const COLOUR = /^(#[0-9a-f]{3,8}|[a-z]+\([\d\s.,%/a-z-]+\)|[a-z]+)$/i;
 
@@ -53,17 +56,22 @@ const COLOUR = /^(#[0-9a-f]{3,8}|[a-z]+\([\d\s.,%/a-z-]+\)|[a-z]+)$/i;
  * colours (a glow), or a whole CSS gradient.
  */
 export function resolveCanvas(value = "accent", custom = {}) {
-  const named = custom[value] ?? CANVASES[value];
-  const raw = named ?? value;
+  // built-ins are written here; the wallpapers among them carry a data: tile
+  if (custom[value] === undefined && CANVASES[value]) return CANVASES[value];
+  const raw = custom[value] ?? value;
   if (Array.isArray(raw)) return glow(raw.map(colour));
-  if (/[;{}<>]/.test(raw)) throw new Error(`Canvas "${value}" is not a colour or gradient`);
+  // Anything else comes from a flag, a config file or an agent. It may paint,
+  // but not load: no url(), image-set() and the like, no escapes, no at-rules.
+  if (typeof raw !== "string" || /[;{}<>\\@]/.test(raw) || LOADS.test(raw)) {
+    throw new Error(`Canvas "${value}" is not a colour or gradient`);
+  }
   if (raw === "transparent" || /gradient\(/.test(raw)) return raw;
   const parts = raw.split(/\s*,\s*(?![^(]*\))/);
   if (parts.length > 3) throw new Error(`Canvas "${value}": give one to three colours`);
   return glow(parts.map(colour));
 
   function colour(c) {
-    if (!COLOUR.test(c.trim())) {
+    if (typeof c !== "string" || !COLOUR.test(c.trim()) || LOADS.test(c)) {
       const names = [...Object.keys(custom), ...Object.keys(CANVASES)].join(", ");
       throw new Error(`Unknown canvas "${value}". Use a colour, or one of: ${names}`);
     }

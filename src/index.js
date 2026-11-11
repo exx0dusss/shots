@@ -358,6 +358,8 @@ export async function frameShot(input, shared = {}) {
     const page = await browser.newPage({ viewport: canvas, deviceScaleFactor: renderScale });
     let png;
     try {
+      // everything on this page is inline; it has no reason to reach the network
+      await page.route("**/*", (route) => route.abort("blockedbyclient"));
       await page.setContent(html);
       await page.waitForFunction(() =>
         [...document.images].every((img) => img.complete && img.naturalWidth > 0),

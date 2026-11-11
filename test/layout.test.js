@@ -72,6 +72,23 @@ test("canvases: names, colours, glows, config", () => {
   assert.equal(resolveCanvas("linear-gradient(#fff, #000)"), "linear-gradient(#fff, #000)");
   assert.throws(() => resolveCanvas("no such thing"), /Unknown canvas/);
   assert.throws(() => resolveCanvas("red; } body { display: none"), /not a colour/);
+  // a canvas may paint but not load anything
+  for (const bad of [
+    "linear-gradient(red, blue), url(http://169.254.169.254/)",
+    "url(//example.com/a.png)",
+    "URL (x)",
+    "-webkit-image-set(url(x) 1x)",
+    "linear-gradient(red, blue), image-set('http://example.com/a.png' 1x)",
+    "linear-gradient(var(--x), blue)",
+    "linear-gradient(red, blue) \\75rl(x)",
+    "@import 'x'",
+  ]) {
+    assert.throws(() => resolveCanvas(bad), /not a colour/, bad);
+    assert.throws(() => resolveCanvas("brand", { brand: bad }), /not a colour/, bad);
+  }
+  assert.throws(() => resolveCanvas("brand", { brand: ["#fff", "url(x)"] }), /Unknown canvas/);
+  // a config entry cannot smuggle one in under a built-in name
+  assert.throws(() => resolveCanvas("accent", { accent: "url(x)" }), /not a colour/);
 });
 
 test("shadow and aspect parsing", () => {

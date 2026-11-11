@@ -302,6 +302,10 @@ which you type yourself, is not:
   project). Symlinks are resolved first, so a link that leads out does not
   pass. `SHOTS_ROOT=/some/dir` sets another directory; `SHOTS_ALLOW_OUTSIDE=1`
   lifts the limit.
+- **Backgrounds cannot load anything.** A canvas or wallpaper is a colour or a
+  gradient; values with `url()`, `image-set()`, `var()`, escapes or at-rules
+  are refused (in the CLI too), and the page the image is composed on is cut
+  off from the network.
 - **Only images are written,** as `.png`, `.webp` or `.jpg`. An existing image
   at `out` is overwritten, as you would expect when re-shooting.
 - **Only `http` and `https` are opened,** never `file:`. Link-local addresses
