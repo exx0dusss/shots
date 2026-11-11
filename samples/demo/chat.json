@@ -1,0 +1,22 @@
+{
+  "title": "Tune Fetch",
+  "subtitle": "bot",
+  "menu": "Open",
+  "messages": [
+    { "date": "Today" },
+    { "from": "me", "text": "/start", "time": "9:38" },
+    {
+      "from": "them",
+      "text": "Hi! Send me a link to a track or a video and I will fetch it for you.\n\nTry **/help** to see what I can do.",
+      "time": "9:38"
+    },
+    { "from": "me", "text": "https://example.com/watch?v=night-drive", "time": "9:40" },
+    {
+      "from": "them",
+      "image": "cover.png",
+      "text": "**Night Drive**\nMidnight Avenue · 3:42",
+      "time": "9:41",
+      "buttons": [["Audio", "Video"], ["Open in app"]]
+    }
+  ]
+}

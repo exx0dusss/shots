@@ -9,6 +9,8 @@
  * platform shows crisply; output is never smaller. `width` (Open Graph only)
  * is a fixed output width, because link previews expect exactly 1200×630.
  */
+import { WALLPAPERS } from "./wallpapers.js";
+
 export const PRESETS = {
   x: { aspect: [16, 9], min: [1600, 900], label: "X post, 16:9" },
   "instagram-portrait": { aspect: [4, 5], min: [1080, 1350], label: "Instagram portrait, 4:5" },
@@ -36,6 +38,8 @@ export const CANVASES = {
   soft: glow(["#fff4ec", "#ffd9c2"]),
   paper: "#f4f4f5",
   ink: "#0c0c0c",
+  // Telegram-style chat wallpapers, also the backgrounds of the chat frame
+  ...WALLPAPERS,
   // no canvas: a transparent image, to place on a background of your own
   none: "transparent",
 };

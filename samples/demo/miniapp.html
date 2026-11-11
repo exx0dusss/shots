@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tune Fetch</title>
+    <style>
+      :root { --bg: #ffffff; --card: #f3f4f6; --ink: #0f172a; --dim: #64748b; --accent: #3390ec; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #17212b; --card: #232e3c; --ink: #f5f7fa; --dim: #8b9bb0; --accent: #5eabf0; }
+      }
+      * { box-sizing: border-box; margin: 0; }
+      body { background: var(--bg); color: var(--ink); font: 16px/1.35 -apple-system, system-ui, sans-serif; padding: 16px; }
+      h1 { font-size: 26px; letter-spacing: -0.4px; margin: 6px 0 14px; }
+      .search { background: var(--card); border-radius: 12px; padding: 12px 14px; color: var(--dim); margin-bottom: 18px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--dim); margin: 0 0 10px; }
+      .now { display: flex; gap: 14px; align-items: center; background: var(--card); border-radius: 16px; padding: 12px; margin-bottom: 20px; }
+      .art { width: 72px; height: 72px; border-radius: 12px; flex: none; }
+      .a1 { background: linear-gradient(135deg, #7c3aed, #ec4899); } .a2 { background: linear-gradient(135deg, #0ea5e9, #22d3ee); }
+      .a3 { background: linear-gradient(135deg, #f59e0b, #ef4444); } .a4 { background: linear-gradient(135deg, #10b981, #84cc16); }
+      .t { font-weight: 600; } .s { color: var(--dim); font-size: 14px; }
+      .bar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--dim) 30%, transparent); margin-top: 10px; }
+      .bar i { display: block; width: 42%; height: 100%; border-radius: 2px; background: var(--accent); }
+      .row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--dim) 18%, transparent); }
+      .row .art { width: 46px; height: 46px; border-radius: 9px; }
+      .row .grow { flex: 1; } .len { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <h1>Library</h1>
+    <div class="search">Search tracks</div>
+    <h2>Now playing</h2>
+    <div class="now">
+      <div class="art a1"></div>
+      <div style="flex: 1">
+        <div class="t">Night Drive</div>
+        <div class="s">Midnight Avenue</div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div>
+    <h2>Downloads</h2>
+    <div class="row"><div class="art a2"></div><div class="grow"><div class="t">Glass Harbour</div><div class="s">Low Tide</div></div><span class="len">4:05</span></div>
+    <div class="row"><div class="art a3"></div><div class="grow"><div class="t">Paper Lanterns</div><div class="s">Ines Varga</div></div><span class="len">3:18</span></div>
+    <div class="row"><div class="art a4"></div><div class="grow"><div class="t">Slow Orbit</div><div class="s">Field Notes</div></div><span class="len">5:27</span></div>
+    <div class="row"><div class="art a1"></div><div class="grow"><div class="t">Second Summer</div><div class="s">Midnight Avenue</div></div><span class="len">2:56</span></div>
+    <div class="row"><div class="art a2"></div><div class="grow"><div class="t">Quiet Engines</div><div class="s">Low Tide</div></div><span class="len">3:49</span></div>
+    <div class="row"><div class="art a3"></div><div class="grow"><div class="t">Blue Hour</div><div class="s">Ines Varga</div></div><span class="len">4:31</span></div>
+    <div class="row"><div class="art a4"></div><div class="grow"><div class="t">Tin Roof Rain</div><div class="s">Field Notes</div></div><span class="len">3:02</span></div>
+  </body>
+</html>

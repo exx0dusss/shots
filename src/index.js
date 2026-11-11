@@ -8,7 +8,7 @@
  * edge and always fades out softly.
  */
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import sharp from "sharp";
@@ -17,6 +17,15 @@ import { capturePage, launchBrowser, readImage, topTint } from "./capture.js";
 import { loadConfig } from "./config.js";
 import { assertInside, isBlockedUrl } from "./guard.js";
 import { iPhone, macWindow, viewOf } from "./frames.js";
+import {
+  APP_DESKTOP_WIDTH,
+  TELEGRAM_FRAMES,
+  telegramApp,
+  telegramChat,
+  telegramView,
+  validateChat,
+} from "./telegram.js";
+import { wallpaperName } from "./wallpapers.js";
 import { arrange, canvasSize } from "./layout.js";
 import {
   DEVICES,
@@ -36,11 +45,19 @@ export { CANVASES, DEVICES, PRESETS, SHADOWS } from "./presets.js";
 const TRANSPARENT_PAD = 200;
 const FORMATS = { ".png": "png", ".webp": "webp", ".jpg": "jpeg", ".jpeg": "jpeg" };
 
-/** A URL, or a path to an image. `localhost:3000` and `example.com` count as URLs. */
+/**
+ * A URL, a path to an image, or a conversation (a `.json` file, or the object
+ * itself). `localhost:3000` and `example.com` count as URLs.
+ */
 export function classifySource(source, cwd) {
+  if (source && typeof source === "object") return { kind: "chat", chat: source, dir: cwd };
   if (/^https?:\/\//i.test(source)) return { kind: "url", url: source };
   const file = path.resolve(cwd, source);
-  if (existsSync(file)) return { kind: "image", file };
+  if (existsSync(file)) {
+    return path.extname(file).toLowerCase() === ".json"
+      ? { kind: "chat", file, dir: path.dirname(file) }
+      : { kind: "image", file };
+  }
   if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(source)) {
     return { kind: "url", url: `http://${source}` };
   }
@@ -73,19 +90,41 @@ export async function resolveOptions(input, root = null) {
     throw new Error(`--preset must be one of ${Object.keys(PRESETS).join(", ")}`);
   }
   const preset = o.preset ? PRESETS[o.preset] : null;
-  if (o.frame !== undefined && o.frame !== "none") {
-    throw new Error(`--frame only accepts "none", got ${o.frame}`);
-  }
   if (!o.out) throw new Error("--out is required");
   const out = path.resolve(cwd, o.out);
   const classified = sources.map((s) => classifySource(s, cwd));
+
+  // what is drawn inside each device: Safari, a Telegram Mini App or a chat
+  const asked = [o.frames ?? o.frame ?? []].flat().flatMap((f) => String(f).split(","));
+  const bare = asked.length === 1 && asked[0] === "none";
+  let frames = classified.map((s) => (s.kind === "chat" ? "telegram-chat" : "safari"));
+  if (asked.length && !bare) {
+    frames = asked.length === 1 ? classified.map(() => asked[0]) : asked;
+    if (frames.length !== sources.length) {
+      throw new Error(`${sources.length} source(s) but ${frames.length} frame(s)`);
+    }
+  }
+  frames.forEach((frame, i) => {
+    if (frame !== "safari" && !TELEGRAM_FRAMES.includes(frame)) {
+      throw new Error(
+        `--frame must be safari, ${TELEGRAM_FRAMES.join(", ")} or none, got ${frame}`,
+      );
+    }
+    if (classified[i].kind === "chat" && (bare || frame !== "telegram-chat")) {
+      throw new Error("A conversation (.json) is drawn with --frame telegram-chat");
+    }
+  });
+  const avatar = o.avatar ? path.resolve(cwd, o.avatar) : null;
   // with a root (the MCP server) nothing is read or written outside it
   if (root) {
     await assertInside(root, out, "out");
     for (const source of classified) {
-      if (source.kind === "image") await assertInside(root, source.file, "source");
-      else if (await isBlockedUrl(source.url)) throw new Error(`Refusing to open ${source.url}`);
+      if (source.file) await assertInside(root, source.file, "source");
+      else if (source.url && (await isBlockedUrl(source.url))) {
+        throw new Error(`Refusing to open ${source.url}`);
+      }
     }
+    if (avatar) await assertInside(root, avatar, "avatar");
   }
   const format = FORMATS[path.extname(out).toLowerCase()];
   if (!format) throw new Error("--out must end in .png, .webp or .jpg");
@@ -112,7 +151,16 @@ export async function resolveOptions(input, root = null) {
     devices,
     out,
     format,
-    bare: o.frame === "none",
+    bare,
+    frames,
+    root,
+    canvases: config.canvases,
+    title: o.title,
+    subtitle: o.subtitle,
+    avatar,
+    wallpaper: o.wallpaper,
+    button: o.button,
+    menu: o.menu,
     preset,
     presetName: o.preset ?? null,
     aspect: o.aspect ? parseAspect(o.aspect) : (preset?.aspect ?? null),
@@ -135,6 +183,37 @@ export async function resolveOptions(input, root = null) {
     wait: o.wait === undefined ? 0 : number("wait", 0, 0, 60000),
     hide: [o.hide ?? []].flat().flatMap((h) => String(h).split(",")),
   };
+}
+
+const dataUrl = (picture) => `data:${picture.mime};base64,${picture.data.toString("base64")}`;
+
+/**
+ * Read a conversation and embed its pictures. Paths in it are relative to the
+ * JSON file; with a `root` they must stay inside it.
+ */
+async function loadChat(source, root) {
+  let chat;
+  if (source.file) {
+    try {
+      chat = JSON.parse(await readFile(source.file, "utf8"));
+    } catch (error) {
+      throw new Error(`${source.file} is not valid JSON: ${error.message}`, { cause: error });
+    }
+  } else {
+    chat = structuredClone(source.chat);
+  }
+  validateChat(chat);
+  const embed = async (file) => {
+    const resolved = path.resolve(source.dir, String(file));
+    if (root) await assertInside(root, resolved, "image");
+    return dataUrl(await readImage(resolved));
+  };
+  // only pictures read here reach the page, never a URL from the JSON
+  chat.avatarSrc = chat.avatar ? await embed(chat.avatar) : null;
+  for (const message of chat.messages) {
+    message.imageSrc = message.image ? await embed(message.image) : null;
+  }
+  return chat;
 }
 
 /** The address text for a source; null draws the device with no Safari chrome. */
@@ -175,14 +254,18 @@ export async function frameShot(input, shared = {}) {
     const shots = [];
     for (const [i, source] of o.sources.entries()) {
       const device = o.devices[i];
-      const address = o.bare ? null : addressFor(o.bar, source);
-      const chrome = address !== null;
+      const frame = o.frames[i];
+      const safari = frame === "safari";
+      const address = o.bare || !safari ? null : addressFor(o.bar, source);
       let view = o.bare
         ? device === "phone"
           ? { width: 393, height: 852 }
           : (o.viewport ?? { width: MAC.width, height: MAC.height })
-        : viewOf(device, { chrome, viewport: o.viewport });
-      let picture;
+        : safari
+          ? viewOf(device, { chrome: address !== null, viewport: o.viewport })
+          : telegramView(frame, device, { viewport: o.viewport, button: o.button });
+      let picture = null;
+      let chat = null;
       if (source.kind === "url") {
         picture = await capturePage(browser, source.url, {
           view,
@@ -195,21 +278,22 @@ export async function frameShot(input, shared = {}) {
           scheme: o.scheme,
           guarded: o.guarded,
         });
+      } else if (source.kind === "chat") {
+        chat = await loadChat(source, o.root);
       } else {
         picture = await readImage(source.file);
         // a desktop window takes the image's own shape, at the usual width
-        if (device === "desktop" && !o.viewport) {
-          view = {
-            width: MAC.width,
-            height: Math.round((MAC.width * picture.height) / picture.width),
-          };
+        if (device === "desktop" && !o.viewport && frame !== "telegram-chat") {
+          const width = safari ? MAC.width : APP_DESKTOP_WIDTH;
+          view = { width, height: Math.round((width * picture.height) / picture.width) };
         }
       }
-      shots.push({ device, address, view, picture });
+      shots.push({ device, frame, address, view, picture, chat });
     }
 
     await mkdir(path.dirname(o.out), { recursive: true });
     if (o.bare) {
+      if (!shots[0].picture) throw new Error("--frame none needs a URL or an image");
       const { picture } = shots[0];
       await writeFile(o.out, await encode(picture.data, o));
       return result(o, picture.width, picture.height);
@@ -218,14 +302,48 @@ export async function frameShot(input, shared = {}) {
     // 2. draw the devices
     const frames = [];
     for (const shot of shots) {
-      const tint = await topTint(shot.picture.data);
-      const dark = o.theme === "auto" ? tint.dark : o.theme === "dark";
-      const src = `data:${shot.picture.mime};base64,${shot.picture.data.toString("base64")}`;
-      const frame =
-        shot.device === "phone"
-          ? iPhone({ src, tint, address: shot.address, dark, shadow: o.shadow })
-          : macWindow({ src, view: shot.view, address: shot.address, dark, shadow: o.shadow });
-      frames.push({ ...frame, device: shot.device });
+      const { device, view, picture, chat } = shot;
+      const tint = picture ? await topTint(picture.data) : null;
+      const src = picture ? dataUrl(picture) : null;
+      // auto: follow the page; a rendered conversation is light unless it says otherwise
+      const dark = o.theme === "auto" ? (tint?.dark ?? chat?.theme === "dark") : o.theme === "dark";
+      const title = o.title ?? chat?.title ?? picture?.title;
+      let frame;
+      if (shot.frame === "telegram-app") {
+        frame = telegramApp({
+          device,
+          src,
+          view,
+          tint,
+          title: title || "Mini App",
+          subtitle: o.subtitle ?? "mini app",
+          button: o.button,
+          dark,
+          shadow: o.shadow,
+        });
+      } else if (shot.frame === "telegram-chat") {
+        const wallpaper = wallpaperName(o.wallpaper ?? chat?.wallpaper, dark);
+        frame = telegramChat({
+          device,
+          src,
+          chat,
+          view,
+          title: title || "Telegram",
+          subtitle: o.subtitle ?? chat?.subtitle ?? "bot",
+          avatarSrc: o.avatar ? dataUrl(await readImage(o.avatar)) : (chat?.avatarSrc ?? null),
+          wallpaper: resolveCanvas(wallpaper, o.canvases),
+          menu: o.menu ?? chat?.menu,
+          dark,
+          shadow: o.shadow,
+        });
+      } else if (device === "phone") {
+        frame = iPhone({ src, tint, address: shot.address, dark, shadow: o.shadow });
+      } else {
+        frame = macWindow({ src, view, address: shot.address, dark, shadow: o.shadow });
+      }
+      // a desktop Mini App is a window as narrow as a phone
+      const small = device === "phone" || shot.frame === "telegram-app";
+      frames.push({ ...frame, device, small });
     }
 
     // 3. lay them out and size the canvas

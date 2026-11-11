@@ -13,6 +13,10 @@ export function rotatedSize(width, height, deg) {
   };
 }
 
+// A phone, or a window as narrow as one (a desktop Mini App): two of them sit
+// side by side, one of them goes in front of a full-size window.
+const isSmall = (frame) => frame.small ?? frame.device === "phone";
+
 const PAIR_GAP = 0.14; // gap between two phones, as a share of a phone's width
 const PAIR_DROP = 28; // the second of a pair sits a little lower
 const PHONE_SCALE = 0.78; // the phone in front of a desktop window
@@ -31,8 +35,8 @@ export function arrange(frames, tilt = 0) {
   let rotate = tilt;
   if (frames.length === 1) {
     items = [{ cx: 0, cy: 0, scale: 1, rotate: 0, z: 1 }];
-  } else if (frames.length === 2 && frames[0].device === frames[1].device) {
-    if (frames[0].device !== "phone") {
+  } else if (frames.length === 2 && isSmall(frames[0]) === isSmall(frames[1])) {
+    if (!isSmall(frames[0])) {
       throw new Error("Two desktops do not fit one canvas; use two phones, or desktop with phone");
     }
     const [a, b] = frames;
@@ -43,7 +47,7 @@ export function arrange(frames, tilt = 0) {
     ];
     rotate = 0;
   } else if (frames.length === 2) {
-    const d = frames.findIndex((f) => f.device === "desktop");
+    const d = frames.findIndex((f) => !isSmall(f));
     const desk = frames[d];
     const phone = frames[1 - d];
     items = [];

@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { assertInside } from "../src/guard.js";
 import { CANVASES, PRESETS, SHADOWS, frameShot, loadConfig } from "../src/index.js";
+import { WALLPAPERS } from "../src/wallpapers.js";
 
 const server = new McpServer({ name: "shots", version: "0.1.0" });
 
@@ -25,19 +26,54 @@ const root =
 
 const presetNames = Object.keys(PRESETS);
 
+// A Telegram conversation, rendered as chat bubbles by the telegram-chat frame.
+const conversation = z
+  .object({
+    title: z.string().optional().describe("Chat name"),
+    subtitle: z.string().optional().describe("Status under the name, e.g. bot, online"),
+    avatar: z.string().optional().describe("Path to an avatar image"),
+    menu: z.string().optional().describe("Text of the bot's menu button"),
+    theme: z.enum(["light", "dark"]).optional(),
+    wallpaper: z.string().optional(),
+    messages: z
+      .array(
+        z.object({
+          from: z.enum(["me", "them"]).optional().describe("me = right, green; them = left"),
+          text: z
+            .string()
+            .optional()
+            .describe(
+              "Supports **bold**, `code` and line breaks; links, @names and /commands are coloured",
+            ),
+          image: z.string().optional().describe("Path to a picture shown in the bubble"),
+          time: z.string().optional().describe("Shown in the bubble (default 9:41)"),
+          buttons: z
+            .array(z.array(z.string()))
+            .optional()
+            .describe("Inline keyboard under the message: rows of button texts"),
+          date: z
+            .string()
+            .optional()
+            .describe("Instead of a message: a day separator such as Today"),
+        }),
+      )
+      .min(1),
+  })
+  .describe("A conversation to render as a Telegram chat");
+
 server.registerTool(
   "frame_screenshot",
   {
     title: "Frame a screenshot",
     description:
-      "Capture a web page (or take an existing image) and draw it inside a macOS Safari window or an iPhone on a coloured canvas, sized for social posts. Writes an image file and returns its path, size and a small preview. Give two sources for a composition: two phones, or devices ['desktop','phone'] for a window with a phone in front. Call list_presets for the preset and canvas names.",
+      "Capture a web page (or take an existing image) and draw it inside a macOS Safari window or an iPhone on a coloured canvas, sized for social posts. Writes an image file and returns its path, size and a small preview. Give two sources for a composition: two phones, or devices ['desktop','phone'] for a window with a phone in front. Set frames to ['telegram-app'] for a Telegram Mini App header around the page, or ['telegram-chat'] for a Telegram chat (around a picture, or rendering a conversation given as a source). Call list_presets for the preset, canvas, frame and wallpaper names.",
     inputSchema: {
       sources: z
-        .array(z.string())
+        .array(z.union([z.string(), conversation]))
         .min(1)
         .max(2)
         .describe(
-          "One or two sources: a URL (http://localhost:3000/pricing) or a path to an image file",
+          "One or two sources. Each is a URL (http://localhost:3000/pricing), a path to an image, a path to a conversation .json, or a conversation object to render as a Telegram chat",
         ),
       out: z
         .string()
@@ -90,10 +126,40 @@ server.registerTool(
         .enum(["auto", "light", "dark"])
         .optional()
         .describe("Safari chrome colour (auto follows the page)"),
-      frame: z
-        .enum(["none"])
+      frames: z
+        .array(z.enum(["safari", "telegram-app", "telegram-chat", "none"]))
+        .min(1)
+        .max(2)
         .optional()
-        .describe("'none' writes the bare capture with no device or canvas"),
+        .describe(
+          "What is drawn inside each device (default safari; a conversation source defaults to telegram-chat). One value applies to both sources. ['none'] writes the bare capture with no device or canvas",
+        ),
+      title: z
+        .string()
+        .optional()
+        .describe("Telegram frames: Mini App title or chat name (default: the page's title)"),
+      subtitle: z
+        .string()
+        .optional()
+        .describe("Telegram frames: line under the title, e.g. 'mini app', 'bot', 'online'"),
+      button: z
+        .string()
+        .optional()
+        .describe("telegram-app: text of the main button under the page"),
+      wallpaper: z
+        .string()
+        .optional()
+        .describe(
+          "telegram-chat background: telegram (default, follows the theme), telegram-light, telegram-dark, telegram-blue, telegram-rose, telegram-violet, telegram-amber, or anything canvas accepts. The same names work as canvas",
+        ),
+      avatar: z
+        .string()
+        .optional()
+        .describe("telegram-chat: path to an avatar image (default: initials)"),
+      menu: z
+        .string()
+        .optional()
+        .describe("telegram-chat: text of the bot's menu button in the composer"),
       width: z
         .union([z.number(), z.literal("native")])
         .optional()
@@ -160,7 +226,14 @@ server.registerTool(
         ),
         canvases: { builtIn: Object.keys(CANVASES), config: Object.keys(config.canvases) },
         devices: ["desktop", "phone"],
-        compositions: ["one device", "two phones", "desktop with phone"],
+        frames: ["safari", "telegram-app", "telegram-chat", "none"],
+        wallpapers: ["telegram", ...Object.keys(WALLPAPERS)],
+        compositions: [
+          "one device",
+          "two phones",
+          "desktop with phone",
+          "desktop telegram-chat with a telegram-app window in front",
+        ],
         shadows: Object.keys(SHADOWS),
         configDefaults: config.defaults,
         configFiles: config.files,

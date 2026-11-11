@@ -97,6 +97,7 @@ export async function capturePage(browser, url, o) {
     return {
       data,
       mime: "image/png",
+      title: await page.title().catch(() => ""),
       width: Math.round(o.view.width * o.scale),
       height: Math.round(o.view.height * o.scale),
     };

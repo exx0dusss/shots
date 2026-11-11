@@ -31,10 +31,24 @@ Options
   --bar <text>         address shown in Safari (default: the URL's host);
                        "none" draws the window or phone with no Safari chrome
   --theme <t>          Safari chrome: auto (follows the page), light or dark
-  --frame none         write the bare capture and stop
+  --frame <kind>       what is drawn in the device: safari (default),
+                       telegram-app (Mini App), telegram-chat, or none to
+                       write the bare capture and stop. Two sources: a,b
   --width <px>         output width; default native (og: 1200). "native" forces it
   --scale <n>          device pixel ratio, 1–3 (default 2)
   --quality <n>        WebP and JPEG quality (default 90)
+
+Telegram frames
+  --title <text>       Mini App title or chat name (default: the page's title)
+  --subtitle <text>    under the title: "mini app", "bot", "online", …
+  --button <text>      telegram-app: main button under the page
+  --wallpaper <name>   telegram-chat background: telegram (default, follows
+                       the theme), telegram-light, telegram-dark, telegram-blue,
+                       telegram-rose, telegram-violet, telegram-amber, or
+                       anything --canvas accepts
+  --avatar <image>     telegram-chat: avatar picture (default: initials)
+  --menu <text>        telegram-chat: the bot's menu button in the composer
+  A .json source is a conversation rendered as chat bubbles; see the README.
 
 Capturing a URL
   --viewport <WxH>     desktop page size in CSS px (default 1440x900)
@@ -65,6 +79,12 @@ const { values, positionals } = parseArgs({
     bar: { type: "string" },
     theme: { type: "string" },
     frame: { type: "string" },
+    title: { type: "string" },
+    subtitle: { type: "string" },
+    button: { type: "string" },
+    wallpaper: { type: "string" },
+    avatar: { type: "string" },
+    menu: { type: "string" },
     width: { type: "string" },
     scale: { type: "string" },
     quality: { type: "string" },
@@ -102,6 +122,7 @@ async function list() {
   console.log(`  ${Object.keys(CANVASES).join(", ")}`);
   const own = Object.keys(config.canvases);
   if (own.length) console.log(`  from ${config.files.join(", ")}: ${own.join(", ")}`);
+  console.log("\nFrames\n  safari, telegram-app, telegram-chat, none");
   console.log(`\nShadows\n  ${Object.keys(SHADOWS).join(", ")}`);
 }
 
