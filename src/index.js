@@ -15,7 +15,7 @@ import sharp from "sharp";
 
 import { capturePage, launchBrowser, readImage, topTint } from "./capture.js";
 import { loadConfig } from "./config.js";
-import { assertInside, isBlockedHost } from "./guard.js";
+import { assertInside, isBlockedUrl } from "./guard.js";
 import { iPhone, macWindow, viewOf } from "./frames.js";
 import { arrange, canvasSize } from "./layout.js";
 import {
@@ -84,7 +84,7 @@ export async function resolveOptions(input, root = null) {
     await assertInside(root, out, "out");
     for (const source of classified) {
       if (source.kind === "image") await assertInside(root, source.file, "source");
-      else if (isBlockedHost(source.url)) throw new Error(`Refusing to open ${source.url}`);
+      else if (await isBlockedUrl(source.url)) throw new Error(`Refusing to open ${source.url}`);
     }
   }
   const format = FORMATS[path.extname(out).toLowerCase()];

@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 
-import { isBlockedHost } from "./guard.js";
+import { isBlockedUrl } from "./guard.js";
 import { PHONE_UA } from "./presets.js";
 
 // Dev-only overlays that must never reach a presentation shot.
@@ -47,13 +47,17 @@ export async function capturePage(browser, url, o) {
     isMobile: o.phone,
     hasTouch: o.phone,
     colorScheme: o.scheme,
+    // a service worker would fetch outside the request filter below
+    serviceWorkers: o.guarded ? "block" : "allow",
     ...(o.phone ? { userAgent: PHONE_UA } : {}),
   });
   try {
     if (o.guarded) {
       // covers redirects and subresources, not only the address asked for
-      await context.route("**/*", (route) =>
-        isBlockedHost(route.request().url()) ? route.abort("blockedbyclient") : route.continue(),
+      await context.route("**/*", async (route) =>
+        (await isBlockedUrl(route.request().url()))
+          ? route.abort("blockedbyclient")
+          : route.continue(),
       );
     }
     const page = await context.newPage();

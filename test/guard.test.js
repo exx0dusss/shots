@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { assertInside, isBlockedHost } from "../src/guard.js";
+import { assertInside, isBlockedHost, isBlockedUrl } from "../src/guard.js";
 import { resolveOptions } from "../src/index.js";
 
 let tmp;
@@ -77,6 +77,11 @@ test("link-local and metadata hosts are blocked, dev servers are not", () => {
     "http://metadata.google.internal/",
     "http://[fe80::1]/",
     "http://[fd00:ec2::254]/",
+    "http://metadata.google.internal./",
+    "http://169.254.169.254./",
+    "http://2852039166/", // 169.254.169.254 as one number
+    "http://0xa9.0xfe.0xa9.0xfe/",
+    "http://[::ffff:169.254.169.254]/",
     "not a url",
   ]) {
     assert.equal(isBlockedHost(url), true, url);
@@ -89,4 +94,23 @@ test("link-local and metadata hosts are blocked, dev servers are not", () => {
   ]) {
     assert.equal(isBlockedHost(url), false, url);
   }
+});
+
+test("a name that resolves to a blocked address is blocked", async () => {
+  const dns = {
+    "evil.example": [{ address: "93.184.216.34" }, { address: "169.254.169.254" }],
+    "evil6.example": [{ address: "fe80::1" }],
+    "fine.example": [{ address: "93.184.216.34" }],
+  };
+  const resolve = async (host) => {
+    if (!dns[host]) throw new Error("ENOTFOUND");
+    return dns[host];
+  };
+  assert.equal(await isBlockedUrl("https://evil.example/latest", resolve), true);
+  assert.equal(await isBlockedUrl("http://EVIL6.example./", resolve), true);
+  assert.equal(await isBlockedUrl("https://fine.example/", resolve), false);
+  assert.equal(await isBlockedUrl("https://unknown.example/", resolve), false);
+  assert.equal(await isBlockedUrl("http://127.0.0.1:3000/", resolve), false);
+  assert.equal(await isBlockedUrl("data:text/plain,hi", resolve), false);
+  assert.equal(await isBlockedUrl("http://169.254.169.254/", resolve), true);
 });

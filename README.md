@@ -204,13 +204,16 @@ which you type yourself, is not:
 - **Only `http` and `https` are opened,** never `file:`. Link-local addresses
   and cloud metadata hosts (`169.254.0.0/16`, `fe80::/10`,
   `metadata.google.internal`) are refused, for the page itself and for
-  anything it redirects to or loads.
+  anything it redirects to or loads. Host names are resolved first, so a
+  public name pointed at such an address is refused too, and service workers
+  are off.
 - **`localhost` and private network addresses are allowed on purpose:**
   shooting your dev server is what the tool is for. It follows that the server
   can screenshot anything your machine can reach, such as a router page or an
   internal dashboard, and save it as an image in the project. Do not run it on
-  a machine where that is a problem. A hostname that resolves to a blocked
-  address is not detected.
+  a machine where that is a problem. The check and the browser resolve a name
+  separately, so a DNS answer that changes in between (rebinding) is not
+  caught.
 
 Set the variables where the server is registered, for example
 `claude mcp add --scope user -e SHOTS_ROOT=$HOME/GitHub shots -- node …/bin/mcp.js`.

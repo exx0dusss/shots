@@ -3,7 +3,9 @@
  * server). Files must stay under one root directory, and hosts that only ever
  * serve machine credentials are refused.
  */
+import { lookup } from "node:dns/promises";
 import { realpath } from "node:fs/promises";
+import { isIP } from "node:net";
 import path from "node:path";
 
 /** Real path of `target`; for a file that does not exist yet, of its nearest existing parent. */
@@ -41,17 +43,55 @@ export async function assertInside(root, target, what) {
 // lives there, only instance credentials.
 const METADATA_HOSTS = new Set(["metadata", "metadata.google.internal", "instance-data"]);
 
-/** Is this URL's host link-local or a cloud metadata service? */
-export function isBlockedHost(url) {
-  let host;
+/** Is this IP address (as text) link-local or a cloud metadata address? */
+export function isBlockedAddress(address) {
+  const ip = address.toLowerCase();
+  if (/^169\.254\.\d+\.\d+$/.test(ip)) return true;
+  if (/^fe[89ab][0-9a-f]:/.test(ip)) return true; // fe80::/10
+  if (/^::ffff:(169\.254\.|a9fe:)/.test(ip)) return true; // IPv4-mapped link-local
+  return ip === "fd00:ec2::254";
+}
+
+/** The URL's host: lower case, no IPv6 brackets, no trailing dot. Null if unparsable. */
+function hostOf(url) {
   try {
-    host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    return new URL(url).hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, "")
+      .replace(/\.+$/, "");
   } catch {
-    return true;
+    return null;
   }
-  if (METADATA_HOSTS.has(host)) return true;
-  if (/^169\.254\.\d+\.\d+$/.test(host)) return true;
-  if (/^fe[89ab][0-9a-f]:/.test(host)) return true; // fe80::/10
-  if (/^::ffff:(169\.254\.|a9fe:)/.test(host)) return true; // IPv4-mapped link-local
-  return host === "fd00:ec2::254";
+}
+
+/** By name alone: is this URL's host link-local or a cloud metadata service? */
+export function isBlockedHost(url) {
+  const host = hostOf(url);
+  return host === null || METADATA_HOSTS.has(host) || isBlockedAddress(host);
+}
+
+const resolved = new Map();
+
+/**
+ * `isBlockedHost`, and also true when the host name resolves to a blocked
+ * address (a public name pointed at 169.254.169.254). Answers are remembered
+ * per host for the life of the process.
+ * @param {string} url
+ * @param {(host: string, o: {all: true}) => Promise<{address: string}[]>} [resolve]
+ */
+export async function isBlockedUrl(url, resolve = lookup) {
+  if (isBlockedHost(url)) return true;
+  if (!/^(https?|wss?):/i.test(url)) return false; // data:, blob:, about:
+  const host = hostOf(url);
+  if (isIP(host)) return false;
+  if (!resolved.has(host)) {
+    resolved.set(
+      host,
+      resolve(host, { all: true }).then(
+        (found) => found.some((entry) => isBlockedAddress(entry.address)),
+        () => false, // does not resolve: the browser cannot reach it either
+      ),
+    );
+  }
+  return resolved.get(host);
 }
