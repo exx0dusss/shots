@@ -4,7 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { assertInside, isBlockedAddress, isBlockedHost, isBlockedUrl } from "../src/guard.js";
+import { EventEmitter } from "node:events";
+
+import {
+  assertInside,
+  isBlockedAddress,
+  isBlockedHost,
+  isBlockedUrl,
+  watchServerAddresses,
+} from "../src/guard.js";
 import { resolveOptions } from "../src/index.js";
 
 let tmp;
@@ -142,4 +150,30 @@ test("server addresses as Chrome reports them", () => {
   for (const ip of ["[::1]", "127.0.0.1", "192.168.1.20", "93.184.216.34"]) {
     assert.equal(isBlockedAddress(ip), false, ip);
   }
+});
+
+test("a response from a blocked address closes the context and fails the capture", async () => {
+  const context = new EventEmitter();
+  let closed = 0;
+  context.close = async () => {
+    closed += 1;
+  };
+  const response = (url, ipAddress, delay = 0) => ({
+    url: () => url,
+    serverAddr: () => new Promise((done) => setTimeout(() => done({ ipAddress, port: 80 }), delay)),
+  });
+  const watch = watchServerAddresses(context);
+
+  context.emit("response", response("https://fine.example/", "93.184.216.34"));
+  context.emit("response", { url: () => "cached", serverAddr: async () => null });
+  await watch.verify();
+  assert.equal(closed, 0);
+
+  // the address is still being read when verify() is called: it must wait
+  context.emit("response", response("https://rebind.example/creds", "169.254.169.254", 20));
+  context.emit("response", response("https://rebind.example/more", "[fe80::1]", 30));
+  assert.equal(watch.refusal(), null);
+  await assert.rejects(watch.verify(), /rebind\.example\/creds was served from a blocked address/);
+  assert.equal(closed, 1);
+  assert.match(watch.refusal().message, /Refusing to capture/);
 });

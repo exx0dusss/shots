@@ -100,3 +100,37 @@ export async function isBlockedUrl(url, resolve = lookup) {
   resolved.set(host, { blocked, until: Date.now() + RESOLVE_TTL });
   return blocked;
 }
+
+/**
+ * Watch the address every response in a browser context really came from. The
+ * moment one is a blocked address the context is closed, which stops the page
+ * and anything it was loading; `verify()` then throws.
+ * @param {{on: Function, close: () => Promise<void>}} context  a Playwright BrowserContext
+ */
+export function watchServerAddresses(context) {
+  const pending = new Set();
+  let reached = null;
+  const refusal = () =>
+    reached ? new Error(`Refusing to capture: ${reached} was served from a blocked address`) : null;
+  context.on("response", (response) => {
+    const check = response
+      .serverAddr()
+      .catch(() => null)
+      .then((server) => {
+        if (!server || !isBlockedAddress(server.ipAddress) || reached) return;
+        reached = response.url();
+        return context.close().catch(() => {});
+      })
+      .finally(() => pending.delete(check));
+    pending.add(check);
+  });
+  return {
+    refusal,
+    /** Wait for every address still being read, then throw if one was blocked. */
+    async verify() {
+      while (pending.size) await Promise.all(pending);
+      const error = refusal();
+      if (error) throw error;
+    },
+  };
+}

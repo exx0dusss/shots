@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 
-import { isBlockedAddress, isBlockedUrl } from "./guard.js";
+import { isBlockedUrl, watchServerAddresses } from "./guard.js";
 import { PHONE_UA } from "./presets.js";
 
 // Dev-only overlays that must never reach a presentation shot.
@@ -51,6 +51,7 @@ export async function capturePage(browser, url, o) {
     serviceWorkers: o.guarded ? "block" : "allow",
     ...(o.phone ? { userAgent: PHONE_UA } : {}),
   });
+  let watch = null;
   try {
     if (o.guarded) {
       // covers redirects and subresources, not only the address asked for
@@ -60,16 +61,9 @@ export async function capturePage(browser, url, o) {
           : route.continue(),
       );
     }
-    // The name check and the browser resolve separately, so also look at the
-    // address each response really came from (DNS rebinding). One bad
-    // response and no picture is taken.
-    let reached = null;
-    if (o.guarded) {
-      context.on("response", async (response) => {
-        const server = await response.serverAddr().catch(() => null);
-        if (server && isBlockedAddress(server.ipAddress)) reached ??= response.url();
-      });
-    }
+    // The name check and the browser resolve separately, so also watch the
+    // address each response really came from (DNS rebinding).
+    if (o.guarded) watch = watchServerAddresses(context);
     const page = await context.newPage();
     // one retry: a single dropped connection should not fail a whole batch
     await page
@@ -96,17 +90,21 @@ export async function capturePage(browser, url, o) {
     // Park the pointer in a corner so nothing shows a hover state.
     await page.mouse.move(0, 0);
     await page.waitForTimeout(600 + (o.wait ?? 0));
-    if (reached)
-      throw new Error(`Refusing to capture: ${reached} was served from a blocked address`);
+    await watch?.verify();
     const data = await page.screenshot({ type: "png" });
+    // a response that arrived while the picture was being taken counts too
+    await watch?.verify();
     return {
       data,
       mime: "image/png",
       width: Math.round(o.view.width * o.scale),
       height: Math.round(o.view.height * o.scale),
     };
+  } catch (error) {
+    // the watcher closes the context, which fails whatever step was running
+    throw watch?.refusal() ?? error;
   } finally {
-    await context.close();
+    await context.close().catch(() => {});
   }
 }
 
